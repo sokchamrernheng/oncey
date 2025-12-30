@@ -1,5 +1,7 @@
 package store
 
+import "time"
+
 // Store defines the persistence layer for idempotency keys.
 //
 // Implementations MUST ensure:
@@ -9,13 +11,12 @@ package store
 // - Forget removes the key immediately
 type Store interface {
 	Get(key string) ([]byte, error)
-	Set(key string, value []byte, ttl int) error
+	Set(key string, value []byte, ttl time.Duration) error
 	Forget(key string) error
 }
 
 type CachedData struct {
-	Id string
-	Status string
-	Value []byte
-	TTL string
+	Status    string
+	Value     []byte
+	ExpiresAt int64
 }

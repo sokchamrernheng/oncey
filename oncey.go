@@ -3,12 +3,13 @@
 package oncey
 
 import (
-	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/sokchamrernheng/oncey/internal/capture"
+	err "github.com/sokchamrernheng/oncey/internal/errors"
 	"github.com/sokchamrernheng/oncey/internal/store"
 )
 
@@ -34,25 +35,30 @@ func NewHTTPMiddleware(opt Option) func(http.Handler) http.Handler {
 
 func idempotencyMiddleware(next http.Handler, ttl time.Duration, st store.Store) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		key, err := extractKey(r)
+		key, error := extractKey(r)
 
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		if error != nil {
+			http.Error(w, error.Error(), http.StatusBadRequest)
 			return
 		}
-		cw := capture.NewHttpCaptureWriter(w)
-		callback := func(ctx context.Context) error {
-			next.ServeHTTP(cw, r)
-			return nil 
-		}
 
-		DoOnce(
-			r.Context(), 
-			key, 
-			ttl,
-			st,
-			callback,
-		)
+		value, error := st.Get(key)
+
+		if error == nil {
+			w.Write(value)
+		}
+		if errors.Is(error, err.ErrNotFound) {
+			cw := capture.NewHttpCaptureWriter(w)
+			next.ServeHTTP(cw, r)
+
+			result := cw.GetResult()
+			st.Set(key, result, ttl)
+
+			fmt.Println(st.Get(key))
+		} else {
+			//real error
+			//maybe some error or panic
+		}
 	}
 	return http.HandlerFunc(fn)
 }
@@ -61,27 +67,8 @@ func extractKey(r *http.Request) (string, error) {
 	key := r.Header.Get("X-Idempotency-Key")
 
 	if key == "" {
-		return "", errors.New("missing idempotency key")
+		return "", err.ErrKeyNotSet
 	}
 
 	return key, nil
-}
-
-type Callback func(ctx context.Context) error
-
-func DoOnce(ctx context.Context, key string,ttl time.Duration, store store.Store, fn Callback) error {
-	
-	// check store
-	// cachedResp, err := store.Get(key)
-	// if (err != nil) {
-	// 	//process error
-	// }
-	// if already done → return
-	// mark in-progress
-
-
-	// run fn
-	// on success → mark done
-	fn(ctx)
-	return nil
 }

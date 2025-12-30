@@ -4,8 +4,8 @@ import "net/http"
 
 type HttpCaptureWriter struct {
 	http.ResponseWriter
-	Status int
-	Body []byte
+	status int
+	body   []byte
 }
 
 func NewHttpCaptureWriter(w http.ResponseWriter) *HttpCaptureWriter {
@@ -14,12 +14,16 @@ func NewHttpCaptureWriter(w http.ResponseWriter) *HttpCaptureWriter {
 	}
 }
 
+func (hcw *HttpCaptureWriter) GetResult() []byte {
+	return hcw.body
+}
+
 func (hcw *HttpCaptureWriter) WriteHeader(statusCode int) {
-	hcw.Status = statusCode
+	hcw.status = statusCode
 	hcw.ResponseWriter.WriteHeader(statusCode)
 }
 
 func (hcw *HttpCaptureWriter) Write(b []byte) (int, error) {
-	hcw.Body = append(hcw.Body, b...)
+	hcw.body = b
 	return hcw.ResponseWriter.Write(b)
 }
